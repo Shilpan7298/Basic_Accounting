@@ -1,0 +1,53 @@
+# Single `docker compose up` brings up the whole thing, offline.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: urjapod
+      POSTGRES_PASSWORD: urjapod
+      POSTGRES_DB: urjapod
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urjapod"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://urjapod:urjapod@db:5432/urjapod
+      STORAGE_DIR: /data
+      # manual | openai_compatible | anthropic — the only switch that decides
+      # which document-understanding backend runs.
+      EXTRACTOR: ${EXTRACTOR:-manual}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://host.docker.internal:11434/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-qwen2.5:14b}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TALLY_HOST: ${TALLY_HOST:-host.docker.internal}
+      TALLY_PORT: ${TALLY_PORT:-9000}
+    volumes:
+      - storage:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
+  storage:

@@ -1,0 +1,17 @@
+Extract this CUSTOMER PURCHASE ORDER. The document was issued by a customer to
+Urjapod Energy Private Limited (the seller). So:
+
+- "customer_name" is the party ISSUING this PO (the buyer), not Urjapod.
+- "customer_gstin" is that buyer's GSTIN. If both parties' GSTINs appear,
+  choose the buyer's. A GSTIN starting with 24 might be either — use the one
+  next to the buyer's name/address block.
+- "po_number" is the buyer's own order reference.
+- "payment_terms_text" must be copied VERBATIM, exactly as written, including
+  percentages and event wording ("30% advance along with PO, 60% before
+  dispatch, 10% after commissioning"). Do not normalise, summarise or
+  reorder it. A separate parser reads this text; it needs the original.
+- "delivery_due_date" is when the buyer expects the goods. If the document
+  gives a lead time in weeks rather than a date, leave it null and put the
+  wording in "notes".
+- Each line: description, HSN code if printed, quantity, unit of measure,
+  unit price, discount percent if shown, and the line total as printed.

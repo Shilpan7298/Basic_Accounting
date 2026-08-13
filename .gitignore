@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Local data — financial records and generated documents never go in git
+storage/
+*.db
+*.db-wal
+*.db-shm
+.env
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+~$*
+*.tsbuildinfo

@@ -1,0 +1,7 @@
+Your previous response could not be used. The error was:
+
+{error}
+
+Return ONLY the corrected JSON object. No prose, no markdown fences, nothing
+before or after the object. Fix the specific problem above and keep every
+other field exactly as you had it.
