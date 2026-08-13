@@ -1,0 +1,15 @@
+Extract this SUPPLIER OFFER / QUOTATION. The document was issued by a supplier
+to Urjapod Energy Private Limited (the buyer). So:
+
+- "supplier_name" is the party ISSUING this quotation (the seller), not Urjapod.
+- "supplier_gstin" is that seller's GSTIN.
+- "offer_ref" is the supplier's own quotation reference number.
+- "validity_date" is the date the quoted prices expire. If the document says
+  "valid for 30 days" rather than giving a date, leave it null and record the
+  wording in "notes".
+- "lead_time_days" is the delivery lead time in days. Convert weeks to days
+  (4 weeks = 28). If it is given as a range, use the longer end.
+- "freight_terms" and "warranty_text": copy the relevant clause verbatim.
+- Each line: description, HSN code if printed, quantity, unit of measure, the
+  QUOTED unit price, discount percent if shown, and the line total as printed.
+  Do not apply the discount yourself.

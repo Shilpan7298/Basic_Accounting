@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ document.title }} {{ document.number }}</title>
+<style>
+  @page { size: A4; margin: 12mm 12mm 16mm 12mm;
+          @bottom-center { content: "{{ document.number }} — page " counter(page) " of " counter(pages);
+                           font: 8pt "DejaVu Sans", sans-serif; color: #666; } }
+  * { box-sizing: border-box; }
+  body { font: 9.5pt "DejaVu Sans", sans-serif; color: #111; margin: 0; }
+  h1, h2, h3 { margin: 0; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; }
+  .muted { color: #555; }
+  .right { text-align: right; }
+  .center { text-align: center; }
+  .small { font-size: 8pt; }
+
+  .doc-title { text-align: center; font-size: 15pt; letter-spacing: .12em;
+               padding: 6px 0 2px; border-bottom: 2px solid #111; }
+  .doc-sub { text-align: center; font-size: 8pt; color: #444; padding: 3px 0 8px; }
+  .proforma-banner { background: #fff6e5; border: 1px solid #e0a800; color: #6b4b00;
+                     padding: 5px 8px; margin: 6px 0 10px; font-size: 8.5pt; text-align: center; }
+
+  .head { display: flex; gap: 12px; align-items: flex-start; }
+  .head .logo { width: 90px; }
+  .head .logo img { max-width: 90px; max-height: 60px; }
+  .company-name { font-size: 13pt; }
+
+  .meta-grid { display: flex; gap: 0; border: 1px solid #999; margin-top: 8px; }
+  .meta-grid > div { flex: 1; padding: 6px 8px; }
+  .meta-grid > div + div { border-left: 1px solid #999; }
+  .meta-grid dt { font-size: 7.5pt; text-transform: uppercase; color: #666; letter-spacing: .05em; }
+  .meta-grid dd { margin: 0 0 4px; font-weight: 600; }
+
+  .parties { display: flex; border: 1px solid #999; border-top: none; }
+  .parties > div { flex: 1; padding: 6px 8px; }
+  .parties > div + div { border-left: 1px solid #999; }
+  .party-label { font-size: 7.5pt; text-transform: uppercase; color: #666; letter-spacing: .05em; }
+  .party-name { font-weight: 700; }
+
+  table.lines { margin-top: 10px; border: 1px solid #999; }
+  table.lines th { background: #f0f0f0; border: 1px solid #999; padding: 5px 4px;
+                   font-size: 8pt; text-transform: uppercase; letter-spacing: .03em; }
+  table.lines td { border: 1px solid #bbb; padding: 4px; vertical-align: top; }
+  table.lines tbody tr { page-break-inside: avoid; }
+
+  .totals { margin-top: 8px; display: flex; gap: 10px; }
+  .totals .left-col { flex: 1.4; }
+  .totals .right-col { flex: 1; }
+  table.tot td { padding: 3px 6px; border-bottom: 1px solid #ddd; }
+  table.tot tr.grand td { border-top: 2px solid #111; border-bottom: 2px solid #111;
+                          font-weight: 700; font-size: 11pt; }
+  table.hsn th, table.hsn td { border: 1px solid #bbb; padding: 3px 4px; font-size: 8pt; }
+  table.hsn th { background: #f5f5f5; }
+
+  .words { border: 1px solid #999; padding: 5px 8px; margin-top: 8px; }
+  .bank { border: 1px solid #999; padding: 6px 8px; margin-top: 8px; font-size: 8.5pt; }
+  .flags { margin-top: 6px; font-size: 8.5pt; }
+  .flags span { display: inline-block; border: 1px solid #999; padding: 1px 6px; margin-right: 5px; }
+  .sign { margin-top: 18px; display: flex; justify-content: space-between; page-break-inside: avoid; }
+  .sign .box { width: 45%; }
+  .sign .line { margin-top: 42px; border-top: 1px solid #333; padding-top: 3px; font-size: 8.5pt; }
+  .footer-note { margin-top: 10px; font-size: 7.5pt; color: #666; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  {% if company.logo_path %}<div class="logo"><img src="{{ company.logo_path }}" alt=""></div>{% endif %}
+  <div style="flex:1">
+    <h1 class="company-name">{{ company.legal_name }}</h1>
+    <div class="small muted">
+      {% for line in company.address_lines %}{{ line }}{% if not loop.last %}, {% endif %}{% endfor %}
+    </div>
+    <div class="small muted">
+      GSTIN: <strong>{{ company.gstin }}</strong>
+      {% if company.pan %} &nbsp;·&nbsp; PAN: {{ company.pan }}{% endif %}
+      {% if company.phone %} &nbsp;·&nbsp; {{ company.phone }}{% endif %}
+      {% if company.email %} &nbsp;·&nbsp; {{ company.email }}{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="doc-title">{{ document.title }}</div>
+<div class="doc-sub">{{ document.subtitle }}</div>
+
+{% if document.is_proforma %}
+<div class="proforma-banner">
+  <strong>This is not a tax invoice.</strong> No GST liability arises on this document.
+  It is issued to request payment against the milestone shown below.
+</div>
+{% endif %}
+
+<div class="meta-grid">
+  <div>
+    <dt>{{ document.title|title }} No.</dt><dd>{{ document.number }}</dd>
+    <dt>Date</dt><dd>{{ document.date }}</dd>
+  </div>
+  <div>
+    {% if document.po_reference %}<dt>Customer PO</dt><dd>{{ document.po_reference }}</dd>{% endif %}
+    {% if document.po_date %}<dt>PO Date</dt><dd>{{ document.po_date }}</dd>{% endif %}
+  </div>
+  <div>
+    {% if document.due_date %}<dt>Payment Due</dt><dd>{{ document.due_date }}</dd>{% endif %}
+    <dt>Place of Supply</dt><dd>{{ party.state_name }} ({{ party.state_code }})</dd>
+  </div>
+</div>
+
+<div class="parties">
+  <div>
+    <div class="party-label">Bill To</div>
+    <div class="party-name">{{ party.name }}</div>
+    {% for line in party.billing_address_lines %}<div>{{ line }}</div>{% endfor %}
+    <div class="small">GSTIN: {{ party.gstin }}</div>
+  </div>
+  <div>
+    <div class="party-label">Ship To</div>
+    <div class="party-name">{{ party.name }}</div>
+    {% for line in party.shipping_address_lines %}<div>{{ line }}</div>{% endfor %}
+  </div>
+</div>
+
+<table class="lines">
+  <thead>
+    <tr>
+      <th style="width:4%">#</th>
+      <th style="width:34%">Description</th>
+      <th style="width:8%">HSN</th>
+      <th style="width:7%">Qty</th>
+      <th style="width:6%">UOM</th>
+      <th style="width:11%">Rate</th>
+      <th style="width:12%">Taxable</th>
+      <th style="width:6%">GST%</th>
+      <th style="width:12%">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in lines %}
+    <tr>
+      <td class="center">{{ line.no }}</td>
+      <td>{{ line.description }}</td>
+      <td class="center">{{ line.hsn_code }}</td>
+      <td class="right">{{ line.qty.fmt }}</td>
+      <td class="center">{{ line.uom }}</td>
+      <td class="right">{{ line.unit_price.fmt }}</td>
+      <td class="right">{{ line.taxable_value.fmt }}</td>
+      <td class="right">{{ line.gst_rate_percent.fmt }}</td>
+      <td class="right">{{ line.total.fmt }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="totals">
+  <div class="left-col">
+    {% if tax.hsn_summary %}
+    <table class="hsn">
+      <thead>
+        <tr>
+          <th>HSN</th><th class="right">Taxable</th><th class="right">Rate</th>
+          {% if tax.is_intra_state %}<th class="right">CGST</th><th class="right">SGST</th>
+          {% else %}<th class="right">IGST</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in tax.hsn_summary %}
+        <tr>
+          <td>{{ row.hsn }}</td>
+          <td class="right">{{ row.taxable_value.fmt }}</td>
+          <td class="right">{{ row.rate.fmt }}%</td>
+          {% if tax.is_intra_state %}
+          <td class="right">{{ row.cgst.fmt }}</td><td class="right">{{ row.sgst.fmt }}</td>
+          {% else %}
+          <td class="right">{{ row.igst.fmt }}</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if payment.terms_text %}
+    <div class="small muted" style="margin-top:8px">
+      <strong>Payment terms:</strong> {{ payment.terms_text }}
+    </div>
+    {% endif %}
+
+    <div class="flags">
+      {% if flags.is_reverse_charge %}<span>Reverse charge applicable</span>{% endif %}
+      {% if flags.is_export %}<span>Export{% if flags.lut_no %} under LUT {{ flags.lut_no }}{% endif %}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="right-col">
+    <table class="tot">
+      <tr><td>Taxable Value</td><td class="right">{{ totals.taxable_value.fmt }}</td></tr>
+      {% if tax.is_intra_state %}
+      <tr><td>CGST</td><td class="right">{{ tax.cgst_total.fmt }}</td></tr>
+      <tr><td>SGST</td><td class="right">{{ tax.sgst_total.fmt }}</td></tr>
+      {% else %}
+      <tr><td>IGST</td><td class="right">{{ tax.igst_total.fmt }}</td></tr>
+      {% endif %}
+      {% if tax.cess_total.value %}
+      <tr><td>Cess</td><td class="right">{{ tax.cess_total.fmt }}</td></tr>
+      {% endif %}
+      <tr><td>Round Off</td><td class="right">{{ totals.round_off.fmt }}</td></tr>
+      <tr class="grand"><td>Grand Total</td><td class="right">₹ {{ totals.grand_total.fmt }}</td></tr>
+      {% if payment.already_received.value %}
+      <tr><td>Less: Received</td><td class="right">{{ payment.already_received.fmt }}</td></tr>
+      <tr><td><strong>Balance Due</strong></td><td class="right"><strong>{{ payment.balance_due.fmt }}</strong></td></tr>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<div class="words">
+  <span class="small muted">Amount in words:</span>
+  <strong>{{ totals.amount_in_words }}</strong>
+</div>
+
+{% if document.is_proforma and payment.milestone_label %}
+<div class="bank">
+  <strong>Milestone:</strong> {{ payment.milestone_label }}
+  ({{ payment.milestone_percent.fmt }}% of order value)
+</div>
+{% endif %}
+
+{% if company.bank_account_no %}
+<div class="bank">
+  <strong>Bank details for payment</strong> —
+  {{ company.bank_name }}{% if company.bank_branch %}, {{ company.bank_branch }}{% endif %} ·
+  A/c {{ company.bank_account_no }} · IFSC {{ company.bank_ifsc }}
+</div>
+{% endif %}
+
+{% if document.notes %}<div class="small" style="margin-top:8px">{{ document.notes }}</div>{% endif %}
+
+<div class="sign">
+  <div class="box small muted">
+    <strong>Declaration</strong><br>
+    We declare that this {{ document.title|lower }} shows the actual price of the
+    goods described and that all particulars are true and correct.
+  </div>
+  <div class="box right">
+    <div class="small">For <strong>{{ company.legal_name }}</strong></div>
+    <div class="line">Authorised Signatory</div>
+  </div>
+</div>
+
+<div class="footer-note">
+  Generated {{ meta.generated_at_ist }} IST · template {{ meta.template_name }} v{{ meta.template_version }}
+</div>
+
+</body>
+</html>
