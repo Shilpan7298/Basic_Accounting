@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import Depends, APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import select
 
@@ -10,7 +12,9 @@ from ...models import AuditEvent
 from ...rendering import render, templates
 from ...schemas.api import AuditEventOut, TemplateOut, TemplateValidationOut
 from ...services import reports as report_service
-from ..deps import DbSession
+from ...models import User
+from ...services.permissions import Permission
+from ..deps import DbSession, requires
 
 router = APIRouter(tags=["reports"])
 
@@ -33,7 +37,7 @@ def _serialise(report: report_service.Report) -> dict:
 @router.get("/reports/{name}")
 def get_report(
     name: str,
-    db: DbSession,
+    db: DbSession, _perm: Annotated[User, Depends(requires(Permission.REPORT_READ))],
     date_from: date | None = None,
     date_to: date | None = None,
     as_on: date | None = None,
@@ -58,7 +62,7 @@ def get_report(
 @router.get("/reports/{name}/excel")
 def get_report_excel(
     name: str,
-    db: DbSession,
+    db: DbSession, _perm: Annotated[User, Depends(requires(Permission.REPORT_READ))],
     date_from: date | None = None,
     date_to: date | None = None,
     as_on: date | None = None,
@@ -95,7 +99,7 @@ def get_report_excel(
 
 @router.get("/audit", response_model=list[AuditEventOut])
 def list_audit_events(
-    db: DbSession,
+    db: DbSession, _perm: Annotated[User, Depends(requires(Permission.AUDIT_READ))],
     entity_type: str | None = None,
     entity_id: str | None = None,
     limit: int = Query(200, le=1000),

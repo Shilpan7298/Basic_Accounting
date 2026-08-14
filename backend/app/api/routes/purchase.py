@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
+
+from fastapi import Depends, APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
@@ -14,7 +16,9 @@ from ...schemas.api import (
 )
 from ...services import purchase as purchase_service
 from ...services import tax_engine
-from ..deps import Actor, DbSession
+from ...models import User
+from ...services.permissions import Permission
+from ..deps import Actor, DbSession, requires
 
 router = APIRouter(tags=["purchase"])
 
@@ -36,7 +40,7 @@ def get_offer(offer_id: str, db: DbSession):
 
 
 @router.post("/offers/{offer_id}/negotiate", response_model=OfferOut)
-def negotiate(offer_id: str, payload: NegotiateIn, db: DbSession, actor: Actor):
+def negotiate(offer_id: str, payload: NegotiateIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_CREATE))]):
     offer = db.get(SupplierOffer, offer_id)
     if offer is None:
         raise HTTPException(404, "offer not found")
@@ -51,7 +55,7 @@ def negotiate(offer_id: str, payload: NegotiateIn, db: DbSession, actor: Actor):
 
 
 @router.post("/offers/{offer_id}/purchase-order", response_model=PurchaseOrderOut, status_code=201)
-def create_purchase_order(offer_id: str, payload: CreatePOIn, db: DbSession, actor: Actor):
+def create_purchase_order(offer_id: str, payload: CreatePOIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_CREATE))]):
     offer = db.get(SupplierOffer, offer_id)
     if offer is None:
         raise HTTPException(404, "offer not found")
@@ -97,7 +101,7 @@ def get_purchase_order(po_id: str, db: DbSession):
 
 @router.post("/purchase-orders/{po_id}/issue", response_model=PurchaseOrderOut)
 def issue_purchase_order(
-    po_id: str, db: DbSession, actor: Actor, template_name: str | None = None
+    po_id: str, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_ISSUE))], template_name: str | None = None
 ):
     po = db.get(PurchaseOrder, po_id)
     if po is None:
@@ -132,7 +136,7 @@ def download_purchase_order(
 
 
 @router.post("/purchase-orders/{po_id}/cancel", response_model=PurchaseOrderOut)
-def cancel_purchase_order(po_id: str, payload: CancelIn, db: DbSession, actor: Actor):
+def cancel_purchase_order(po_id: str, payload: CancelIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_VOID))]):
     po = db.get(PurchaseOrder, po_id)
     if po is None:
         raise HTTPException(404, "purchase order not found")

@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Date, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Date, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base, TimestampMixin, UUIDPkMixin, utcnow
+from .base import Base, TimestampMixin, UUIDPkMixin, UtcDateTime, utcnow
 from .enums import AuditAction, DocumentKind, ExtractionStatus, LedgerScope
 from .json_type import JSONText
 
@@ -58,7 +58,7 @@ class AuditEvent(UUIDPkMixin, Base):
     action: Mapped[AuditAction] = mapped_column(String(30), nullable=False)
     actor: Mapped[str] = mapped_column(String(120), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, nullable=False
+        UtcDateTime, default=utcnow, nullable=False
     )
     before_json: Mapped[dict[str, Any] | None] = mapped_column(JSONText)
     after_json: Mapped[dict[str, Any] | None] = mapped_column(JSONText)
@@ -87,7 +87,7 @@ class TallyExport(UUIDPkMixin, TimestampMixin, Base):
     manifest_json: Mapped[dict[str, Any] | None] = mapped_column(JSONText)
     xml_path: Mapped[str | None] = mapped_column(String(600))
     delivery: Mapped[str] = mapped_column(String(20), nullable=False, default="FILE")
-    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    posted_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     response_text: Mapped[str | None] = mapped_column(Text)
     succeeded: Mapped[bool] = mapped_column(default=True, nullable=False)
 

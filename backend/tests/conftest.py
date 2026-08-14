@@ -30,6 +30,8 @@ from app.models import (  # noqa: E402
     Supplier,
     TaxRate,
 )
+from app.models import Role  # noqa: E402
+from app.services import security  # noqa: E402
 from app.services.audit import install_session_listener  # noqa: E402
 
 install_session_listener(SessionLocal)
@@ -194,9 +196,44 @@ def order_factory(db):
     return _make
 
 
+# --- users -----------------------------------------------------------------
+# Passwords are intentionally long enough to satisfy the strength check.
+OWNER_PASSWORD = "owner-password-1"
+ACCOUNTANT_PASSWORD = "accountant-password-1"
+VIEWER_PASSWORD = "viewer-password-1"
+
+
 @pytest.fixture()
-def client(db):
-    """A TestClient whose requests share this test's database session."""
+def owner(db):
+    user = security.create_user(
+        db, username="shilpan", full_name="Shilpan Shukla", password=OWNER_PASSWORD,
+        role=Role.OWNER, actor="test-setup",
+    )
+    db.commit()
+    return user
+
+
+@pytest.fixture()
+def accountant(db):
+    user = security.create_user(
+        db, username="ca", full_name="Office Accountant", password=ACCOUNTANT_PASSWORD,
+        role=Role.ACCOUNTANT, actor="test-setup",
+    )
+    db.commit()
+    return user
+
+
+@pytest.fixture()
+def viewer(db):
+    user = security.create_user(
+        db, username="auditor", full_name="External Auditor", password=VIEWER_PASSWORD,
+        role=Role.VIEWER, actor="test-setup",
+    )
+    db.commit()
+    return user
+
+
+def _make_client(db):
     from fastapi.testclient import TestClient
 
     from app.db import get_db
@@ -206,6 +243,49 @@ def client(db):
         yield db
 
     app.dependency_overrides[get_db] = _override
-    with TestClient(app) as test_client:
-        yield test_client
+    return TestClient(app), app
+
+
+@pytest.fixture()
+def anon_client(db):
+    """Not signed in. Used to prove endpoints actually refuse."""
+    test_client, app = _make_client(db)
+    with test_client as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+def _sign_in(test_client, username, password):
+    response = test_client.post(
+        "/api/auth/login", json={"username": username, "password": password}
+    )
+    assert response.status_code == 200, response.text
+    return test_client
+
+
+@pytest.fixture()
+def client(db, owner):
+    """Signed in as the owner — the default for most tests."""
+    test_client, app = _make_client(db)
+    with test_client as c:
+        _sign_in(c, owner.username, OWNER_PASSWORD)
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def accountant_client(db, accountant):
+    test_client, app = _make_client(db)
+    with test_client as c:
+        _sign_in(c, accountant.username, ACCOUNTANT_PASSWORD)
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def viewer_client(db, viewer):
+    test_client, app = _make_client(db)
+    with test_client as c:
+        _sign_in(c, viewer.username, VIEWER_PASSWORD)
+        yield c
     app.dependency_overrides.clear()

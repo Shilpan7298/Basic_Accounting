@@ -11,6 +11,8 @@ import { useParams } from 'react-router-dom'
 import { api, fmtDate, inr, pct } from '../lib/api'
 import type { BuildMilestonesResult, Invoice, Milestone, Order } from '../lib/types'
 import { ErrorBox, Loading, Page, Stat, Status } from '../components/ui'
+import { P, useAuth } from '../lib/auth'
+import DocumentActions from '../components/DocumentActions'
 
 const NEXT_STATUS: Record<string, string[]> = {
   draft: ['received', 'cancelled'],
@@ -42,6 +44,7 @@ interface ManualRow {
 export default function OrderDetail() {
   const { orderId } = useParams<{ orderId: string }>()
   const queryClient = useQueryClient()
+  const { can } = useAuth()
   const [builder, setBuilder] = useState<ManualRow[] | null>(null)
   const [parseResult, setParseResult] = useState<BuildMilestonesResult | null>(null)
 
@@ -130,23 +133,26 @@ export default function OrderDetail() {
       actions={
         <>
           <Status value={data.status} />
-          {NEXT_STATUS[data.status]?.map((target) => (
+          {can(P.orderTransition) &&
+            NEXT_STATUS[data.status]?.map((target) => (
+              <button
+                key={target}
+                className={target === 'cancelled' ? 'btn-danger' : 'btn-ghost'}
+                disabled={transition.isPending}
+                onClick={() => transition.mutate(target)}
+              >
+                → {target.replace(/_/g, ' ')}
+              </button>
+            ))}
+          {can(P.documentCreate) && (
             <button
-              key={target}
-              className={target === 'cancelled' ? 'btn-danger' : 'btn-ghost'}
-              disabled={transition.isPending}
-              onClick={() => transition.mutate(target)}
+              className="btn-primary"
+              disabled={raiseTaxInvoice.isPending}
+              onClick={() => raiseTaxInvoice.mutate()}
             >
-              → {target.replace(/_/g, ' ')}
+              {raiseTaxInvoice.isPending ? 'Raising…' : 'Raise tax invoice'}
             </button>
-          ))}
-          <button
-            className="btn-primary"
-            disabled={raiseTaxInvoice.isPending}
-            onClick={() => raiseTaxInvoice.mutate()}
-          >
-            {raiseTaxInvoice.isPending ? 'Raising…' : 'Raise tax invoice'}
-          </button>
+          )}
         </>
       }
     >
@@ -476,22 +482,7 @@ export default function OrderDetail() {
                     <td className="td tnum text-right font-medium">{inr(invoice.grand_total)}</td>
                     <td className="td"><Status value={invoice.status} /></td>
                     <td className="td text-right">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          className="btn-ghost"
-                          disabled={!invoice.pdf_path}
-                          onClick={() => api.download(`/invoices/${invoice.id}/download?fmt=pdf`)}
-                        >
-                          PDF
-                        </button>
-                        <button
-                          className="btn-ghost"
-                          disabled={!invoice.docx_path}
-                          onClick={() => api.download(`/invoices/${invoice.id}/download?fmt=docx`)}
-                        >
-                          Word
-                        </button>
-                      </div>
+                      <DocumentActions invoice={invoice} onChanged={invalidate} />
                     </td>
                   </tr>
                 ))}

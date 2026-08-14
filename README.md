@@ -24,10 +24,16 @@ architecture and milestone plan in [`docs/PLAN.md`](docs/PLAN.md).
 
 ```bash
 make setup          # venv + backend deps + npm install
-make seed DEMO=1    # schema, masters, GST rates, and one worked example order
+make seed DEMO=1    # schema, users, masters, GST rates, one worked example
 make api            # http://localhost:8000  (docs at /docs)
 make web            # http://localhost:5173  (in a second terminal)
 ```
+
+Sign in with `shilpan` / `urjapod-dev-9812` (owner) or `bookkeeper` /
+`urjapod-dev-4471` (accountant) to see the two roles.
+
+**Installing it for real** — one office server, browser clients, with the
+accountant unable to change history: see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
 Or the whole thing in containers, with Postgres:
 
@@ -82,6 +88,8 @@ Five things are enforced rather than merely intended, each with tests:
 | Financial records are append-only | `services/audit.py` | a mutation nobody logged is still logged |
 | Numbering is gapless, per-FY, race-free | `services/numbering.py` | 12 concurrent threads, 12 distinct contiguous numbers |
 | AI never commits financial data unattended | `api/routes/extraction.py` | no order exists until `/approve` |
+| The accountant cannot change history | `services/permissions.py` | he gets 403 and the invoice is unchanged |
+| Amendments are new versions, never overwrites | `services/versioning.py` | v1 survives; the ledger only moves on approval |
 
 ### Tax
 
@@ -127,10 +135,11 @@ structurally, by `doc_type`.
 ## Testing
 
 ```bash
-make test        # 215 tests
+make test        # 276 tests
 ```
 
-Every domain rule in `CLAUDE.md` has a test. Sample anonymised POs and supplier
+Every domain rule in `CLAUDE.md` has a test, including the role split and the
+versioning rules. Sample anonymised POs and supplier
 offers are in `backend/tests/fixtures/` — replace them with real ones and the
 extraction tests get sharper.
 
@@ -153,6 +162,16 @@ E-invoicing (IRN/QR) and e-way bills are **not** implemented. The nullable
 and the finalisation step is isolated, so the call can be inserted later without
 reshaping anything.
 
-No auth providers, no multi-tenancy, no microservices — single company, a
-handful of users, one database. The operator's name is recorded on every audit
-row regardless.
+No auth *providers* (OAuth/SSO), no multi-tenancy, no microservices — single
+company, a handful of users, one database. Local username/password with three
+roles is there, because role separation is the whole point of the deployment;
+see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## Packaging
+
+`.github/workflows/release.yml` builds a Windows `.exe` and a macOS `.dmg` on
+real Windows and macOS runners — they cannot be cross-built from Linux. Tag a
+release (`git tag v0.2.0 && git push --tags`) and both appear on the Releases
+page. The installers are written and the CI verifies PDF rendering on each
+platform before packaging, but the Windows service install and the macOS
+bundle still need one run on real hardware before you depend on them.

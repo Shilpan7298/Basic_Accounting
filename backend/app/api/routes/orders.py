@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException
 from sqlalchemy import select
 
 from ...models import MilestoneStatus, OrderStatus, Receipt, SalesOrder
@@ -19,7 +21,9 @@ from ...schemas.api import (
 )
 from ...services import audit, orders as order_service, payment_terms
 from ...services.money import q2
-from ..deps import Actor, DbSession
+from ...models import User
+from ...services.permissions import Permission
+from ..deps import Actor, DbSession, requires
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -71,7 +75,7 @@ def get_order(order_id: str, db: DbSession):
 
 
 @router.post("/{order_id}/transition", response_model=OrderOut)
-def transition_order(order_id: str, payload: TransitionIn, db: DbSession, actor: Actor):
+def transition_order(order_id: str, payload: TransitionIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.ORDER_TRANSITION))]):
     try:
         order = order_service.get(db, order_id)
         order_service.transition(
@@ -90,7 +94,7 @@ def transition_order(order_id: str, payload: TransitionIn, db: DbSession, actor:
 
 @router.post("/{order_id}/milestones", response_model=BuildMilestonesOut)
 def build_milestones(
-    order_id: str, payload: BuildMilestonesIn, db: DbSession, actor: Actor
+    order_id: str, payload: BuildMilestonesIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_CREATE))]
 ):
     """Parse the terms text, or accept a manually built schedule.
 
@@ -165,7 +169,7 @@ def preview_terms(text: str):
 
 
 @router.post("/{order_id}/receipts", status_code=201)
-def record_receipt(order_id: str, payload: ReceiptIn, db: DbSession, actor: Actor):
+def record_receipt(order_id: str, payload: ReceiptIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.RECEIPT_RECORD))]):
     try:
         order = order_service.get(db, order_id)
     except order_service.OrderNotFound as exc:

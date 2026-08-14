@@ -90,6 +90,8 @@ export interface Invoice {
   grand_total: Money
   amount_in_words: string | null
   status: 'draft' | 'issued' | 'cancelled'
+  notes: string | null
+  cancelled_reason: string | null
   pdf_path: string | null
   docx_path: string | null
   lines: InvoiceLine[]

@@ -1,3 +1,4 @@
+from .auth import DocumentVersion, User, UserSession
 from .base import Base, new_uuid, utcnow
 from .common import (
     AuditEvent,
@@ -8,6 +9,7 @@ from .common import (
     TallyLedgerMapping,
 )
 from .enums import (
+    AmendmentStatus,
     AuditAction,
     DocType,
     DocumentKind,
@@ -19,6 +21,7 @@ from .enums import (
     OfferStatus,
     OrderStatus,
     PurchaseOrderStatus,
+    Role,
     SeriesKey,
 )
 from .masters import Company, Customer, Item, Supplier, TaxRate
@@ -34,11 +37,13 @@ from .sales import (
 )
 
 __all__ = [
+    "AmendmentStatus",
     "AuditAction",
     "AuditEvent",
     "Base",
     "Company",
     "Customer",
+    "DocumentVersion",
     "DocType",
     "DocumentKind",
     "DocumentSeries",
@@ -58,6 +63,7 @@ __all__ = [
     "PurchaseOrderLine",
     "PurchaseOrderStatus",
     "Receipt",
+    "Role",
     "SalesOrder",
     "SalesOrderLine",
     "SeriesKey",
@@ -69,6 +75,8 @@ __all__ = [
     "TallyExportItem",
     "TallyLedgerMapping",
     "TaxRate",
+    "User",
+    "UserSession",
     "new_uuid",
     "utcnow",
 ]

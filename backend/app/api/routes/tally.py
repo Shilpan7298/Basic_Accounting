@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from datetime import date
 
-from fastapi import APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
@@ -15,7 +17,9 @@ from ...schemas.api import (
     TallyPreviewOut,
 )
 from ...services import tally as tally_service
-from ..deps import Actor, DbSession
+from ...models import User
+from ...services.permissions import Permission
+from ..deps import Actor, DbSession, requires
 
 router = APIRouter(prefix="/tally", tags=["tally"])
 
@@ -31,7 +35,7 @@ def list_mappings(db: DbSession, scope: str | None = None):
 
 
 @router.post("/mappings", response_model=LedgerMappingOut, status_code=201)
-def upsert_mapping(payload: LedgerMappingIn, db: DbSession):
+def upsert_mapping(payload: LedgerMappingIn, db: DbSession, _perm: Annotated[User, Depends(requires(Permission.SETTINGS_EDIT))]):
     try:
         scope = LedgerScope(payload.scope)
     except ValueError as exc:
@@ -59,7 +63,7 @@ def upsert_mapping(payload: LedgerMappingIn, db: DbSession):
 
 
 @router.post("/mappings/seed")
-def seed_mappings(db: DbSession):
+def seed_mappings(db: DbSession, _perm: Annotated[User, Depends(requires(Permission.SETTINGS_EDIT))]):
     """Create the placeholder rows. Never overwrites a name you have edited."""
     created = tally_service.seed_mappings(db)
     db.commit()
@@ -87,7 +91,7 @@ def preview(payload: TallyExportIn, db: DbSession):
 
 
 @router.post("/export", response_model=TallyExportOut, status_code=201)
-def run_export(payload: TallyExportIn, db: DbSession, actor: Actor):
+def run_export(payload: TallyExportIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.TALLY_EXPORT))]):
     try:
         export = tally_service.run_export(
             db,

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import Depends, APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
@@ -11,7 +13,9 @@ from ...schemas.api import CancelIn, CreateProformaIn, CreateTaxInvoiceIn, Invoi
 from ...services import invoices as invoice_service
 from ...services import orders as order_service
 from ...services import tax_engine
-from ..deps import Actor, DbSession
+from ...models import User
+from ...services.permissions import Permission
+from ..deps import Actor, DbSession, requires
 
 router = APIRouter(tags=["invoices"])
 
@@ -45,7 +49,7 @@ def get_invoice(invoice_id: str, db: DbSession):
 
 
 @router.post("/orders/{order_id}/proforma", response_model=InvoiceOut, status_code=201)
-def create_proforma(order_id: str, payload: CreateProformaIn, db: DbSession, actor: Actor):
+def create_proforma(order_id: str, payload: CreateProformaIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_CREATE))]):
     try:
         order = order_service.get(db, order_id)
     except order_service.OrderNotFound as exc:
@@ -71,7 +75,7 @@ def create_proforma(order_id: str, payload: CreateProformaIn, db: DbSession, act
 
 
 @router.post("/orders/{order_id}/tax-invoice", response_model=InvoiceOut, status_code=201)
-def create_tax_invoice(order_id: str, payload: CreateTaxInvoiceIn, db: DbSession, actor: Actor):
+def create_tax_invoice(order_id: str, payload: CreateTaxInvoiceIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_CREATE))]):
     try:
         order = order_service.get(db, order_id)
     except order_service.OrderNotFound as exc:
@@ -104,7 +108,7 @@ def create_tax_invoice(order_id: str, payload: CreateTaxInvoiceIn, db: DbSession
 
 @router.post("/invoices/{invoice_id}/issue", response_model=InvoiceOut)
 def issue_invoice(
-    invoice_id: str, db: DbSession, actor: Actor, template_name: str | None = None
+    invoice_id: str, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_ISSUE))], template_name: str | None = None
 ):
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
@@ -151,7 +155,7 @@ def reprint_invoice(invoice_id: str, db: DbSession, fmt: str = Query("pdf", patt
 
 
 @router.post("/invoices/{invoice_id}/cancel", response_model=InvoiceOut)
-def cancel_invoice(invoice_id: str, payload: CancelIn, db: DbSession, actor: Actor):
+def cancel_invoice(invoice_id: str, payload: CancelIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.DOCUMENT_VOID))]):
     """The number is kept — that is what keeps the series gapless."""
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:

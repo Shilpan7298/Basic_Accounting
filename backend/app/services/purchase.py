@@ -29,7 +29,7 @@ from ..models import (
 )
 from ..rendering import context as ctx
 from ..rendering import render
-from . import audit, tax_engine
+from . import audit, tax_engine, versioning
 from .gstin import state_code_of, state_name
 from .money import amount_in_words
 from .numbering import NumberingService
@@ -338,6 +338,9 @@ def issue_purchase_order(
     po.render_context_json = context
     po.status = PurchaseOrderStatus.ISSUED
     db.flush()
+
+    if versioning.current_version(db, "purchase_orders", po.id) is None:
+        versioning.record_initial_version(db, "purchase_orders", po.id, actor=actor)
 
     audit.record(
         db,

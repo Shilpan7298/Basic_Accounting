@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -62,9 +64,20 @@ def health():
     }
 
 
-from .api.routes import extraction, invoices, masters, orders, purchase, reports, tally  # noqa: E402
+from .api.routes import (  # noqa: E402
+    amendments,
+    auth,
+    extraction,
+    invoices,
+    masters,
+    orders,
+    purchase,
+    reports,
+    tally,
+)
 
 for router in (
+    auth.router,
     masters.router,
     extraction.router,
     orders.router,
@@ -72,5 +85,28 @@ for router in (
     purchase.router,
     tally.router,
     reports.router,
+    # Registered last: its /{entity_type}/… paths would otherwise
+    # shadow the specific routes above.
+    amendments.router,
 ):
     app.include_router(router, prefix="/api")
+
+
+# --- the front end ---------------------------------------------------------
+# In a packaged install there is no nginx: the built React app sits next to the
+# backend and FastAPI serves it, so the whole thing is one process listening on
+# one port. In development Vite serves it instead and this directory is absent.
+_STATIC = Path(__file__).resolve().parent / "static"
+if _STATIC.is_dir():
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/assets", StaticFiles(directory=_STATIC / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        """Anything that is not an API route is a client-side route."""
+        candidate = _STATIC / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_STATIC / "index.html")

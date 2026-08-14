@@ -101,7 +101,9 @@ def test_approving_an_extraction_creates_the_order(client, db):
     response = client.post(
         f"/api/extractions/{upload['extraction']['id']}/approve",
         json={"corrected": corrected},
-        headers={"X-Actor": "priya@urjapod"},
+        # A spoofed actor header must be ignored — the audit trail takes the
+        # name from the signed-in session, not from anything the caller sends.
+        headers={"X-Actor": "someone-else"},
     )
     assert response.status_code == 200
     order = response.json()["sales_order"]
@@ -113,7 +115,9 @@ def test_approving_an_extraction_creates_the_order(client, db):
     audit = client.get(
         "/api/audit", params={"entity_type": "sales_orders", "entity_id": order["id"]}
     ).json()
-    assert any(e["actor"] == "priya@urjapod" for e in audit)
+    actors = {e["actor"] for e in audit}
+    assert "shilpan" in actors, "the signed-in user should own the audit rows"
+    assert "someone-else" not in actors, "a spoofed X-Actor header was believed"
 
 
 def test_approving_twice_is_refused(client):

@@ -3,6 +3,21 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class Role(StrEnum):
+    """Who can do what. There are only three, on purpose."""
+
+    OWNER = "owner"          # everything, including void and delete
+    ACCOUNTANT = "accountant"  # day-to-day entry; amendments need approval
+    VIEWER = "viewer"        # read-only, for the CA at year end
+
+
+class AmendmentStatus(StrEnum):
+    PENDING = "pending"
+    CURRENT = "current"
+    SUPERSEDED = "superseded"
+    REJECTED = "rejected"
+
+
 class SeriesKey(StrEnum):
     TAX_INVOICE = "TAX_INVOICE"
     PROFORMA = "PROFORMA"
@@ -91,3 +106,12 @@ class AuditAction(StrEnum):
     CANCEL = "cancel"
     ISSUE = "issue"
     EXPORT = "export"
+    LOGIN = "login"
+    LOGIN_FAILED = "login_failed"
+    LOGOUT = "logout"
+    AMEND_PROPOSED = "amend_proposed"
+    AMEND_APPROVED = "amend_approved"
+    AMEND_REJECTED = "amend_rejected"
+    VOID = "void"
+    HARD_DELETE = "hard_delete"
+    PERMISSION_DENIED = "permission_denied"

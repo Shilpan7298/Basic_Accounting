@@ -305,6 +305,8 @@ class InvoiceOut(ORMModel):
     grand_total: Decimal
     amount_in_words: str | None
     status: str
+    notes: str | None = None
+    cancelled_reason: str | None = None
     template_name: str | None
     template_version: int | None
     pdf_path: str | None

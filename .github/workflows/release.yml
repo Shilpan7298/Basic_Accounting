@@ -1,0 +1,183 @@
+name: Build installers
+
+# Produces the Windows .exe and the macOS .dmg on real Windows and macOS
+# runners — they cannot be cross-built from Linux.
+#
+#   git tag v0.2.0 && git push --tags     → a GitHub Release with both files
+#   Actions → Build installers → Run       → downloadable artifacts, no release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # The suite must pass before anything is packaged. Shipping an installer
+  # built from a red build is how a wrong invoice reaches a customer.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install the PDF stack
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf-2.0-0
+      - run: pip install -e "./backend[dev]"
+      - run: python -m pytest backend/tests -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  windows:
+    needs: [test, frontend]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - uses: actions/download-artifact@v4
+        with: { name: frontend-dist, path: backend/app/static }
+
+      # WeasyPrint needs the GTK3 native stack at build time so PyInstaller can
+      # see and bundle the DLLs, and at run time on the target machine — the
+      # installer chain-installs it there.
+      - name: Install GTK3 runtime
+        run: |
+          curl -L -o gtk3-setup.exe https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases/download/2022-01-04/gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe
+          Start-Process -FilePath .\gtk3-setup.exe -ArgumentList "/S" -Wait
+          echo "C:\Program Files\GTK3-Runtime Win64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Copy-Item .\gtk3-setup.exe packaging\windows\gtk3-runtime-setup.exe
+        shell: pwsh
+
+      - name: Install dependencies
+        run: |
+          pip install -e "./backend"
+          pip install pyinstaller
+
+      - name: Verify PDF rendering actually works before packaging
+        run: python -c "from weasyprint import HTML; print('pdf bytes:', len(HTML(string='<h1>ok</h1>').write_pdf()))"
+
+      - name: Build the executable
+        run: pyinstaller packaging/urjapod.spec --noconfirm
+
+      - name: Fetch NSSM (wraps the app as a Windows Service)
+        run: |
+          curl -L -o nssm.zip https://nssm.cc/release/nssm-2.24.zip
+          Expand-Archive nssm.zip -DestinationPath nssm
+          Copy-Item nssm\nssm-2.24\win64\nssm.exe packaging\windows\nssm.exe
+        shell: pwsh
+
+      - name: Build the installer
+        env:
+          URJAPOD_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '0.2.0-dev' }}
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows\urjapod.iss
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: packaging/windows/Output/*.exe
+
+  macos:
+    needs: [test, frontend]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - uses: actions/download-artifact@v4
+        with: { name: frontend-dist, path: backend/app/static }
+
+      - name: Install the PDF stack
+        run: brew install pango gdk-pixbuf libffi
+
+      - name: Install dependencies
+        run: |
+          pip install -e "./backend"
+          pip install pyinstaller
+      - name: Verify PDF rendering actually works before packaging
+        env:
+          DYLD_FALLBACK_LIBRARY_PATH: /opt/homebrew/lib:/usr/local/lib
+        run: python -c "from weasyprint import HTML; print('pdf bytes:', len(HTML(string='<h1>ok</h1>').write_pdf()))"
+
+      - name: Build the app bundle
+        env:
+          DYLD_FALLBACK_LIBRARY_PATH: /opt/homebrew/lib:/usr/local/lib
+        run: pyinstaller packaging/urjapod.spec --noconfirm
+
+      - name: Build the .dmg
+        run: |
+          brew install create-dmg
+          VERSION="${{ github.ref_type == 'tag' && github.ref_name || '0.2.0-dev' }}"
+          mkdir -p dist/dmg && cp -R "dist/Urjapod.app" dist/dmg/
+          create-dmg \
+            --volname "Urjapod ${VERSION}" \
+            --window-size 620 400 \
+            --icon-size 96 \
+            --icon "Urjapod.app" 160 190 \
+            --app-drop-link 450 190 \
+            --no-internet-enable \
+            "dist/Urjapod-${VERSION}.dmg" "dist/dmg" || \
+          hdiutil create -volname "Urjapod ${VERSION}" -srcfolder dist/dmg -ov -format UDZO "dist/Urjapod-${VERSION}.dmg"
+
+      # Unsigned: macOS will warn on first open (right-click → Open). Signing
+      # and notarising needs an Apple Developer account; add the secrets and
+      # this step starts doing it.
+      - name: Sign and notarise
+        if: ${{ secrets.MACOS_CERTIFICATE != '' }}
+        run: echo "Signing secrets are present — wire codesign/notarytool here."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer
+          path: dist/*.dmg
+
+  release:
+    needs: [windows, macos]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/windows-installer/*.exe
+            artifacts/macos-installer/*.dmg
+          body: |
+            ## Installing
+
+            **Office server (one machine only)** — run the Windows installer and
+            choose **Server**. It installs a service that starts at boot, opens
+            the firewall port, and asks you to create the owner account.
+
+            **Accountant's PC** — run the same installer and choose
+            **Workstation**, then type the server's address
+            (e.g. `http://urjapod-server:8765`). Nothing is stored locally.
+
+            **Mac** — open the .dmg and drag Urjapod to Applications. macOS will
+            warn that the app is unsigned: right-click it and choose **Open**
+            once, and it will not ask again.
+
+            Back up regularly: **Start menu → Back up the books**, and copy the
+            result somewhere off that machine.

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
+
+from fastapi import Depends, APIRouter, HTTPException, Query
 from sqlalchemy import select
 
 from ...models import Company, Customer, Item, Supplier, TaxRate
@@ -16,7 +18,9 @@ from ...schemas.api import (
     TaxRateOut,
 )
 from ...services import gstin as gstin_service
-from ..deps import DbSession
+from ...models import User
+from ...services.permissions import Permission
+from ..deps import DbSession, requires
 
 router = APIRouter(tags=["masters"])
 
@@ -41,7 +45,7 @@ def get_company(db: DbSession):
 
 
 @router.put("/company")
-def upsert_company(payload: CompanyIn, db: DbSession):
+def upsert_company(payload: CompanyIn, db: DbSession, _perm: Annotated[User, Depends(requires(Permission.SETTINGS_EDIT))]):
     gstin = _validated_gstin(payload.gstin)
     company = db.execute(select(Company)).scalars().first()
     data = payload.model_dump()
@@ -73,7 +77,7 @@ def list_customers(db: DbSession, q: str | None = None):
 
 
 @router.post("/customers", response_model=CustomerOut, status_code=201)
-def create_customer(payload: CustomerIn, db: DbSession):
+def create_customer(payload: CustomerIn, db: DbSession, _perm: Annotated[User, Depends(requires(Permission.MASTER_EDIT))]):
     gstin = _validated_gstin(payload.gstin)
     data = payload.model_dump()
     data["gstin"] = gstin
@@ -89,7 +93,7 @@ def create_customer(payload: CustomerIn, db: DbSession):
 
 
 @router.put("/customers/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: str, payload: CustomerIn, db: DbSession):
+def update_customer(customer_id: str, payload: CustomerIn, db: DbSession, _perm: Annotated[User, Depends(requires(Permission.MASTER_EDIT))]):
     customer = db.get(Customer, customer_id)
     if customer is None:
         raise HTTPException(404, "customer not found")
@@ -118,7 +122,7 @@ def list_suppliers(db: DbSession, q: str | None = None):
 
 
 @router.post("/suppliers", response_model=SupplierOut, status_code=201)
-def create_supplier(payload: SupplierIn, db: DbSession):
+def create_supplier(payload: SupplierIn, db: DbSession, _perm: Annotated[User, Depends(requires(Permission.MASTER_EDIT))]):
     gstin = _validated_gstin(payload.gstin)
     data = payload.model_dump()
     data["gstin"] = gstin
@@ -143,7 +147,7 @@ def list_items(db: DbSession, q: str | None = None):
 
 
 @router.post("/items", response_model=ItemOut, status_code=201)
-def create_item(payload: ItemIn, db: DbSession):
+def create_item(payload: ItemIn, db: DbSession, _perm: Annotated[User, Depends(requires(Permission.MASTER_EDIT))]):
     if db.execute(select(Item).where(Item.sku == payload.sku)).scalars().first():
         raise HTTPException(409, f"an item with SKU {payload.sku} already exists")
     item = Item(**payload.model_dump())
@@ -164,7 +168,7 @@ def list_tax_rates(db: DbSession, hsn: str | None = Query(None)):
 
 
 @router.post("/tax-rates", response_model=TaxRateOut, status_code=201)
-def create_tax_rate(payload: TaxRateIn, db: DbSession):
+def create_tax_rate(payload: TaxRateIn, db: DbSession, _perm: Annotated[User, Depends(requires(Permission.TAXRATE_EDIT))]):
     open_ended = db.execute(
         select(TaxRate).where(
             TaxRate.hsn_code == payload.hsn_code, TaxRate.effective_to.is_(None)

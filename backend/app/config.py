@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     tally_port: int = 9000
     tally_company_name: str = "Urjapod Energy Private Limited"
 
+    # --- sessions ----------------------------------------------------------
+    # The intended deployment is an office LAN over plain HTTP
+    # (http://urjapod-server:8080), where a Secure cookie would never be sent
+    # and nobody could stay signed in. Set this to true only when the app is
+    # actually served over HTTPS, e.g. behind a reverse proxy or on a VPS.
+    session_cookie_secure: bool = False
+
     # --- misc --------------------------------------------------------------
     default_actor: str = "system"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]

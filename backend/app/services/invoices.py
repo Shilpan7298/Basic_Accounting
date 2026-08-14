@@ -31,7 +31,7 @@ from ..models import (
 )
 from ..rendering import context as ctx
 from ..rendering import render
-from . import audit, orders, tax_engine
+from . import audit, orders, tax_engine, versioning
 from .money import amount_in_words, q2
 from .numbering import NumberingService
 
@@ -348,6 +348,11 @@ def issue(
     invoice.render_context_json = context
     invoice.status = InvoiceStatus.ISSUED
     db.flush()
+
+    # Issuing freezes the document: version 1 is written here and is never
+    # modified again. Every later change adds a version instead.
+    if versioning.current_version(db, "invoices", invoice.id) is None:
+        versioning.record_initial_version(db, "invoices", invoice.id, actor=actor)
 
     audit.record(
         db,

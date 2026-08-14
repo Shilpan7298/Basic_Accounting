@@ -7,7 +7,9 @@ financial data unattended" is enforced rather than merely intended.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from typing import Annotated
+
+from fastapi import Depends, APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from ...extractors import health_all
@@ -18,7 +20,9 @@ from ...schemas.extraction import schema_for
 from ...services import documents as doc_service
 from ...services import orders as order_service
 from ...services import purchase as purchase_service
-from ..deps import Actor, DbSession
+from ...models import User
+from ...services.permissions import Permission
+from ..deps import Actor, DbSession, requires
 
 router = APIRouter(tags=["extraction"])
 
@@ -48,7 +52,7 @@ def extractor_health():
 
 @router.post("/uploads", response_model=UploadResponse, status_code=201)
 async def upload_and_extract(
-    db: DbSession,
+    db: DbSession, _perm: Annotated[User, Depends(requires(Permission.EXTRACTION_RUN))],
     file: UploadFile = File(...),
     schema_name: str = Form("customer_po"),
     extractor: str | None = Form(None),
@@ -104,7 +108,7 @@ def get_extraction(extraction_id: str, db: DbSession):
 
 
 @router.post("/extractions/{extraction_id}/retry", response_model=ExtractionOut)
-def retry_extraction(extraction_id: str, db: DbSession, extractor: str | None = None):
+def retry_extraction(extraction_id: str, db: DbSession, _perm: Annotated[User, Depends(requires(Permission.EXTRACTION_RUN))], extractor: str | None = None):
     """Re-run against a different adapter without re-uploading the file."""
     extraction = db.get(Extraction, extraction_id)
     if extraction is None:
@@ -122,7 +126,7 @@ def retry_extraction(extraction_id: str, db: DbSession, extractor: str | None = 
 
 @router.post("/extractions/{extraction_id}/approve")
 def approve_extraction(
-    extraction_id: str, payload: ApproveExtractionIn, db: DbSession, actor: Actor
+    extraction_id: str, payload: ApproveExtractionIn, db: DbSession, actor: Actor, _perm: Annotated[User, Depends(requires(Permission.EXTRACTION_APPROVE))]
 ):
     """The human has reviewed and corrected. Now — and only now — records exist."""
     extraction = db.get(Extraction, extraction_id)

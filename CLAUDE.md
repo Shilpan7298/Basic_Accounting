@@ -96,8 +96,9 @@ Both sides:   Item / customer / supplier masters, tax compliance, management
 
 ## Do not
 - Do not scaffold the whole app at once. One vertical slice at a time.
-- Do not add auth providers, multi-tenancy, or microservices. Single company,
-  handful of users, one database.
+- Do not add auth *providers* (OAuth/SSO), multi-tenancy, or microservices.
+  Single company, handful of users, one database. Local username/password
+  with roles is in scope and required — see 'Roles and immutability' below.
 - Do not compute tax anywhere except the single `tax_engine` module.
 - Do not put provider-specific prompt text outside `extractors/prompts/`.
 
@@ -144,3 +145,45 @@ exporter may read a ledger name from anywhere else.
 - **WeasyPrint works in this container** (pango/cairo present, verified
   rendering a real PDF). It is the only PDF renderer; there is no fallback
   path to keep in sync.
+
+
+---
+
+## Roles and immutability (added after the deployment decision)
+
+The system is deployed as **one server, browser clients** — never a copy per
+machine. Role restrictions are only real if the accountant does not hold the
+database file; give him the file and any SQLite browser defeats them.
+
+**Three roles**, in `services/permissions.py`, one table:
+
+| | accountant | owner | viewer |
+|---|---|---|---|
+| create / issue documents | ✅ | ✅ | ❌ |
+| amend an issued document | proposes only | applies at once | ❌ |
+| approve an amendment | ❌ | ✅ | ❌ |
+| void / delete | ❌ | ✅ | ❌ |
+| GST rates, Tally ledgers, users | ❌ | ✅ | ❌ |
+
+The owner's permission set is defined as the whole `Permission` enum, so a
+permission added later cannot leave the owner locked out.
+
+**Issued documents are immutable.** Amending writes a new `DocumentVersion`
+holding a complete self-contained snapshot; the live row changes only when that
+version becomes `current`. The accountant's proposals sit `pending` until the
+owner approves. Amending lines re-runs `tax_engine` — an amended document is
+recomputed, not edited around.
+
+**Hard delete exists** because the business asked for it, over a stated
+objection. It is owner-only, needs the document number typed to confirm, and
+writes the full pre-delete snapshot (header, lines, every version) into
+`audit_events` first. Void is the default and the documented recommendation.
+
+- The actor on every audit row comes from the signed-in session, never a header.
+- A refused action is itself audited (`PERMISSION_DENIED`).
+- Passwords use `hashlib.scrypt` — stdlib, so no compiled wheel to fight when
+  freezing the app into a .exe/.dmg.
+- `SESSION_COOKIE_SECURE` defaults to **false**: the target deployment is an
+  office LAN over plain HTTP, where a Secure cookie is never sent.
+- Every mutating endpoint declares a permission; `test_permissions.py` fails the
+  build if one does not.

@@ -33,6 +33,7 @@ from app.models import (  # noqa: E402
 from app.services import invoices as invoice_service  # noqa: E402
 from app.services import orders as order_service  # noqa: E402
 from app.services import purchase as purchase_service  # noqa: E402
+from app.services import security  # noqa: E402
 from app.services import tally as tally_service  # noqa: E402
 from app.services.audit import install_session_listener  # noqa: E402
 
@@ -97,6 +98,30 @@ SUPPLIERS = [
     ("Shakti Enclosures & Fabrication", "24AAKFS6677L1ZG",
      "Shed 8, Odhav Industrial Estate\nAhmedabad 382415"),
 ]
+
+
+def seed_users(db) -> None:
+    """A development owner and accountant, so both roles can be tried out.
+
+    The passwords are obvious on purpose — this is the dev seed. A real
+    install creates its owner through the first-run screen or
+    ``urjapod create-owner``, never from a script with a password in it.
+    """
+    from app.models import Role, User
+
+    # Note: the strength check refuses a password containing the username,
+    # so these deliberately do not echo it — including as a substring.
+    for username, full_name, role, password in [
+        ("shilpan", "Development Owner", Role.OWNER, "urjapod-dev-9812"),
+        ("bookkeeper", "Development Accountant", Role.ACCOUNTANT, "urjapod-dev-4471"),
+    ]:
+        if db.execute(select(User).where(User.username == username)).scalars().first():
+            continue
+        security.create_user(
+            db, username=username, full_name=full_name, password=password,
+            role=role, actor=ACTOR,
+        )
+        print(f"  + user {username} / {password}  ({role})")
 
 
 def seed_masters(db) -> None:
@@ -214,6 +239,9 @@ def main() -> int:
 
     db = SessionLocal()
     try:
+        print("seeding users:")
+        seed_users(db)
+        db.commit()
         print("seeding masters:")
         seed_masters(db)
         db.commit()

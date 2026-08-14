@@ -8,6 +8,7 @@ __pycache__/
 # Node
 node_modules/
 frontend/dist/
+backend/app/static/
 
 # Local data — financial records and generated documents never go in git
 storage/
